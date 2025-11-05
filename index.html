@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Clínico - Psicóloga Giovana Morais</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-light: #fae8ef;
+      --card-light: #f3c8d8;
+      --accent-light: #be2761;
+      --muted-light: #6b7280;
+      --bg-dark: #1c1c2e;
+      --card-dark: #2a2a3d;
+      --accent-dark: #f08ab0;
+      --muted-dark: #a0a0b0;
+    }
+
+    body { font-family: 'Inter', sans-serif; transition: 0.3s; }
+    body.light { background: var(--bg-light); color: #0f1724; }
+    body.dark { background: var(--bg-dark); color: #fff; }
+
+    .card-light-mode { background: var(--card-light); color: #0f1724; }
+    .card-dark-mode { background: var(--card-dark); color: #fff; }
+
+    .btn-accent { background-color: var(--accent-light); color: #fff; border: none; }
+    body.dark .btn-accent { background-color: var(--accent-dark); }
+
+    .sidebar { min-width: 250px; transition: width 0.3s; }
+    body.dark .sidebar { background-color: var(--card-dark); color: #fff; }
+    body.light .sidebar { background-color: var(--card-light); color: #0f1724; }
+
+    .sidebar a { text-decoration: none; display: flex; align-items: center; padding: 10px 15px; border-radius: 8px; color: inherit; margin-bottom: 5px; transition: 0.2s; }
+    .sidebar a.active, .sidebar a:hover { background-color: rgba(255,255,255,0.2); }
+
+    .sidebar i { margin-right: 8px; }
+    .theme-toggle { cursor: pointer; font-size: 1.2rem; }
+
+    .modal-content.light { background-color: var(--card-light); color: #0f1724; }
+    .modal-content.dark { background-color: var(--card-dark); color: #fff; }
+
+    .badge-open { background-color: #ffc107; color: #000; }
+    .badge-paid { background-color: #28a745; color: #fff; }
+  </style>
+</head>
+<body class="light">
+
+<div class="d-flex">
+  <nav class="sidebar d-flex flex-column p-3">
+    <h4 class="mb-4"><i class="bi bi-heart-pulse-fill"></i> Cuidar</h4>
+    <a href="#" data-view="dashboard" class="active"><i class="bi bi-house-door-fill"></i> Início</a>
+    <a href="#" data-view="patients"><i class="bi bi-people-fill"></i> Pacientes</a>
+    <a href="#" data-view="agenda"><i class="bi bi-calendar-fill"></i> Agenda</a>
+    <a href="#" data-view="sessionReports"><i class="bi bi-journal-text"></i> Relato da Sessão</a>
+    <a href="#" data-view="finance"><i class="bi bi-currency-dollar"></i> Financeiro</a>
+    <a href="https://psigiovana.github.io/psi.giovana/"><i class="bi bi-file-text-fill"></i> Contratos</a>
+    <a href="#" data-view="users"><i class="bi bi-shield-lock-fill"></i> Usuários</a>
+    <div class="mt-auto d-flex justify-content-between align-items-center">
+      <small>Versão Demo</small>
+      <i class="bi bi-sun-fill theme-toggle" id="toggleTheme"></i>
+    </div>
+  </nav>
+
+  <div class="flex-grow-1 p-4">
+    <header class="d-flex justify-content-between align-items-center mb-4">
+      <h3 id="view-title">Início</h3>
+      <div>
+        <span id="current-user" class="me-3">—</span>
+        <button class="btn btn-outline-light" id="logoutBtn">Sair</button>
+      </div>
+    </header>
+    <div id="content"></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="mainModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+// ======= Tema =======
+// Sempre inicia no modo claro
+document.body.classList.add('light');
+localStorage.setItem('theme', 'light');
+
+const toggleBtn = document.getElementById('toggleTheme');
+toggleBtn.classList.replace('bi-moon-fill', 'bi-sun-fill');
+
+// Alterna entre claro/escuro manualmente
+toggleBtn.addEventListener('click', () => {
+  const isLight = document.body.classList.contains('light');
+  const newTheme = isLight ? 'dark' : 'light';
+  document.body.classList.replace(isLight ? 'light' : 'dark', newTheme);
+  toggleBtn.classList.replace(isLight ? 'bi-sun-fill' : 'bi-moon-fill', isLight ? 'bi-moon-fill' : 'bi-sun-fill');
+  localStorage.setItem('theme', newTheme);
+  renderAll();
+});
+
+// ======= Banco local unificado =======
+const FILE_NAME = "sistema_clinico.json";
+
+// Inicializa ou carrega automaticamente do localStorage
+let db = JSON.parse(localStorage.getItem("sistema_clinico")) || {
+  patients: [],
+  sessions: [],
+  finance: [],
+  reports: [],
+  users: [{ usuario: "admin", senha: "admin123" }]
+};
+
+// ======= Salvar automaticamente no localStorage =======
+function saveAll() {
+  localStorage.setItem("sistema_clinico", JSON.stringify(db));
+  console.log("💾 Dados salvos localmente.");
+}
+
+// ======= Exportar JSON manualmente =======
+function exportarJSON() {
+  const jsonStr = JSON.stringify(db, null, 2);
+  const blob = new Blob([jsonStr], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = FILE_NAME;
+  link.click();
+  console.log("📂 Arquivo JSON exportado.");
+}
+
+// ======= Importar JSON manualmente =======
+function importarJSON(arquivo) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      db = JSON.parse(e.target.result);
+      localStorage.setItem("sistema_clinico", JSON.stringify(db));
+      alert("✅ Dados importados com sucesso!");
+      renderAll();
+    } catch (err) {
+      alert("❌ Erro ao importar JSON: " + err.message);
+    }
+  };
+  reader.readAsText(arquivo);
+}
+
+
+
+// ======= Botões de backup =======
+const headerDiv = document.querySelector("header div");
+const inputImport = document.createElement("input");
+inputImport.type = "file";
+inputImport.accept = ".json";
+inputImport.style.display = "none";
+inputImport.onchange = (e) => importarJSON(e.target.files[0]);
+headerDiv.insertAdjacentHTML("beforeend", `
+  <button class="btn btn-outline-secondary me-2" id="btnExport">💾 Exportar JSON</button>
+  <button class="btn btn-outline-secondary me-2" id="btnImport">📂 Importar JSON</button>
+`);
+headerDiv.appendChild(inputImport);
+
+document.getElementById("btnExport").addEventListener("click", exportarJSON);
+document.getElementById("btnImport").addEventListener("click", () => inputImport.click());
+
+  // ======= Navegação =======
+  document.querySelectorAll('.sidebar a').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelectorAll('.sidebar a').forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      setView(link.dataset.view);
+    });
+  });
+
+  const setView = view => {
+    const titles = {
+      dashboard: 'Início', patients: 'Pacientes', agenda: 'Agenda',
+      finance: 'Financeiro', sessionReports: 'Relato da Sessão', users: 'Usuários'
+    };
+    document.getElementById('view-title').innerText = titles[view] || 'Início';
+    switch (view) {
+      case 'dashboard': renderDashboard(); break;
+      case 'patients': renderPatients(); break;
+      case 'agenda': renderAgenda(); break;
+      case 'finance': renderFinance(); break;
+      case 'sessionReports': renderSessionReports(); break;
+      case 'users': renderUsers(); break;
+      default: renderDashboard();
+    }
+  };
+
+  // ======= Dashboard =======
+  function renderDashboard() {
+    const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+    const total = db.finance.reduce((s, f) => s + (f.type === "receita" ? Number(f.value) : -Number(f.value)), 0);
+    const open = db.finance.filter(f => f.status === 'aberto').length;
+    document.getElementById('content').innerHTML = `
+      <div class="row g-3">
+        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Pacientes</h5><p>${db.patients.length}</p></div></div>
+        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Sessões</h5><p>${db.sessions.length}</p></div></div>
+        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Contas em Aberto</h5><p>${open}</p></div></div>
+        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Total Financeiro</h5><p>R$ ${total.toFixed(2)}</p></div></div>
+      </div>`;
+  }
+
+  // ======= Pacientes =======
+  function renderPatients() {
+    const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+    const rows = db.patients.map((p,i)=>`
+      <tr><td>${i+1}</td><td>${p.name}</td><td>${p.phone||'-'}</td><td>${p.email||'-'}</td>
+      <td><button class="btn btn-sm btn-outline-primary" onclick="editPatient(${i})"><i class='bi bi-pencil'></i></button>
+      <button class="btn btn-sm btn-outline-danger" onclick="deletePatient(${i})"><i class='bi bi-trash'></i></button></td></tr>
+    `).join('');
+    document.getElementById('content').innerHTML = `
+      <div class="mb-3"><button class="btn btn-accent" onclick="editPatient(-1)">+ Novo Paciente</button></div>
+      <div class="card ${bg} p-3"><table class="table text-white"><thead>
+      <tr><th>#</th><th>Nome</th><th>Telefone</th><th>Email</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function editPatient(index){
+    const p = index==-1?{}:db.patients[index];
+    const modal = new bootstrap.Modal('#mainModal');
+    const theme = document.body.classList.contains('light')?'light':'dark';
+    document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
+    document.getElementById('modalBody').innerHTML=`
+      <h5>${index==-1?'Novo':'Editar'} Paciente</h5>
+      <input class='form-control mb-2' id='pname' placeholder='Nome' value='${p.name||''}'>
+      <input class='form-control mb-2' id='pphone' placeholder='Telefone' value='${p.phone||''}'>
+      <input class='form-control mb-2' id='pemail' placeholder='Email' value='${p.email||''}'>
+      <button class='btn btn-accent' id='saveP'>Salvar</button>`;
+    modal.show();
+    document.getElementById('saveP').onclick=()=>{
+      const name=document.getElementById('pname').value;
+      if(!name)return alert('Nome obrigatório');
+      const phone=document.getElementById('pphone').value;
+      const email=document.getElementById('pemail').value;
+      if(index==-1) db.patients.push({name,phone,email});
+      else db.patients[index]={name,phone,email};
+      saveAll(); modal.hide(); renderPatients();
+    }
+  }
+
+  function deletePatient(i){
+    if(confirm('Excluir paciente?')){ db.patients.splice(i,1); saveAll(); renderPatients();}
+  }
+
+  // ======= Agenda =======
+  function renderAgenda(){
+    const bg=document.body.classList.contains('light')?'card-light-mode':'card-dark-mode';
+    const rows=db.sessions.map((s,i)=>`<tr><td>${i+1}</td><td>${s.date}</td><td>${s.time}</td><td>${s.patient}</td><td>${s.notes||'-'}</td></tr>`).join('');
+    document.getElementById('content').innerHTML=`
+      <div class='mb-3'><button class='btn btn-accent' onclick='addSession()'>+ Nova Sessão</button></div>
+      <div class='card ${bg} p-3'><table class='table text-white'><thead>
+      <tr><th>#</th><th>Data</th><th>Hora</th><th>Paciente</th><th>Obs</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function addSession(){
+    const modal=new bootstrap.Modal('#mainModal');
+    const theme=document.body.classList.contains('light')?'light':'dark';
+    document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
+    const opts=db.patients.map(p=>`<option>${p.name}</option>`).join('');
+    document.getElementById('modalBody').innerHTML=`
+      <h5>Nova Sessão</h5>
+      <input type='date' class='form-control mb-2' id='sdate'>
+      <input type='time' class='form-control mb-2' id='stime'>
+      <select class='form-select mb-2' id='spatient'><option value=''>Selecione</option>${opts}</select>
+      <textarea class='form-control mb-2' id='snotes' placeholder='Observações'></textarea>
+      <button class='btn btn-accent' id='saveS'>Salvar</button>`;
+    modal.show();
+    document.getElementById('saveS').onclick=()=>{
+      const date=sdate.value,time=stime.value,patient=spatient.value,notes=snotes.value;
+      if(!date||!time||!patient)return alert('Preencha todos os campos');
+      db.sessions.push({date,time,patient,notes}); saveAll(); modal.hide(); renderAgenda();
+    }
+  }
+
+  // ======= Financeiro =======
+  function renderFinance(){
+    const bg=document.body.classList.contains('light')?'card-light-mode':'card-dark-mode';
+    let total=0;
+    const rows=db.finance.map((f,i)=>{
+      const valor=Number(f.value); total+=f.type==='receita'?valor:-valor;
+      const tipo=f.type==='receita'?'<span class="badge bg-success">Receita</span>':'<span class="badge bg-danger">Despesa</span>';
+      const status=f.status==='aberto'?'<span class="badge badge-open">Aberto</span>':'<span class="badge badge-paid">Pago</span>';
+      const ac=(f.type==='receita'&&f.status==='aberto')?`<button class='btn btn-sm btn-outline-success' onclick='markAsPaid(${i})'>Baixar</button>`:'';
+      return `<tr><td>${i+1}</td><td>${f.desc}</td><td>${f.patient||'-'}</td><td>${tipo}</td><td>R$ ${valor.toFixed(2)}</td><td>${status}</td><td>${ac}</td></tr>`;
+    }).join('');
+    document.getElementById('content').innerHTML=`
+      <div class='mb-3 d-flex justify-content-between align-items-center'>
+        <button class='btn btn-accent' onclick='addFinance()'>+ Novo Lançamento</button>
+        <h5>Total: R$ ${total.toFixed(2)}</h5>
+      </div>
+      <div class='card ${bg} p-3'><table class='table text-white'><thead>
+      <tr><th>#</th><th>Descrição</th><th>Paciente</th><th>Tipo</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function addFinance(){
+    const modal=new bootstrap.Modal('#mainModal');
+    const theme=document.body.classList.contains('light')?'light':'dark';
+    document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
+    const opts=db.patients.map(p=>`<option>${p.name}</option>`).join('');
+    document.getElementById('modalBody').innerHTML=`
+      <h5>Novo Lançamento</h5>
+      <input class='form-control mb-2' id='fdesc' placeholder='Descrição'>
+      <select class='form-select mb-2' id='fpatient'><option value=''>Selecione o paciente (opcional)</option>${opts}</select>
+      <input type='number' class='form-control mb-2' id='fvalue' placeholder='Valor'>
+      <select class='form-select mb-2' id='ftype'>
+        <option value='receita'>Conta a Receber</option>
+        <option value='despesa'>Despesa</option>
+      </select>
+      <button class='btn btn-accent' id='saveF'>Salvar</button>`;
+    modal.show();
+    document.getElementById('saveF').onclick=()=>{
+      const desc=fdesc.value,value=fvalue.value,type=ftype.value,patient=fpatient.value;
+      if(!desc||!value)return alert('Preencha todos os campos');
+      db.finance.push({desc,value,type,patient,status:'aberto'}); saveAll(); modal.hide(); renderFinance();
+    }
+  }
+
+  function markAsPaid(i){ db.finance[i].status='pago'; saveAll(); renderFinance(); }
+
+  // ======= Relato da Sessão =======
+function renderSessionReports(){
+  const bg=document.body.classList.contains('light')?'card-light-mode':'card-dark-mode';
+  const rows=db.reports.map((r,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${r.date}</td>
+      <td>${r.patient}</td>
+      <td>${r.text.length>40 ? r.text.substring(0,40)+'...' : r.text}</td>
+      <td>
+        <button class='btn btn-sm btn-info me-1' onclick='viewReport(${i})'>👁️</button>
+        <button class='btn btn-sm btn-warning' onclick='editReport(${i})'>✏️</button>
+      </td>
+    </tr>`).join('');
+
+  document.getElementById('content').innerHTML=`
+    <div class='mb-3'><button class='btn btn-accent' onclick='addReport()'>+ Novo Relato</button></div>
+    <div class='card ${bg} p-3'>
+      <table class='table text-white table-hover align-middle'>
+        <thead><tr><th>#</th><th>Data</th><th>Paciente</th><th>Relato</th><th>Ações</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function addReport(){
+  openReportModal('Novo Relato da Sessão');
+  document.getElementById('saveR').onclick=()=>{
+    const date=rdate.value,patient=rpatient.value,text=rtext.value;
+    if(!date||!patient||!text)return alert('Preencha todos os campos');
+    db.reports.push({date,patient,text});
+    saveAll(); bootstrap.Modal.getInstance('#mainModal').hide(); renderSessionReports();
+  }
+}
+
+function viewReport(i){
+  const r = db.reports[i];
+  const modal = new bootstrap.Modal('#mainModal');
+  const theme = document.body.classList.contains('light') ? 'light' : 'dark';
+  document.querySelector('#mainModal .modal-content').className = `modal-content ${theme}`;
+
+  const pageBg = theme === 'light' ? '#ffffff' : '#1e1e2f';
+  const bodyBg = theme === 'light' ? '#e9ecef' : '#121212';
+  const textColor = theme === 'light' ? '#212529' : '#f8f9fa';
+  const borderColor = theme === 'light' ? '#ccc' : '#333';
+
+  document.getElementById('modalBody').innerHTML = `
+    <div style="background:${bodyBg};padding:30px;display:flex;justify-content:center;align-items:center;">
+      <div id="reportView" style="
+        background:${pageBg};
+        color:${textColor};
+        width:100%;
+        max-width:800px;
+        padding:60px 70px;
+        border:1px solid ${borderColor};
+        border-radius:8px;
+        box-shadow:0 0 20px rgba(0,0,0,0.2);
+        font-family:'Georgia',serif;
+        line-height:1.8;
+        overflow-y:auto;
+        max-height:80vh;
+      ">
+        <div style="text-align:center;margin-bottom:30px;">
+          <h3 style="font-weight:bold;margin-bottom:5px;">Relato da Sessão</h3>
+          <small style="opacity:0.7;">Visualização estilo documento</small>
+          <hr style="margin-top:20px;border-color:${borderColor};opacity:0.4;">
+        </div>
+
+        <p><strong>Data:</strong> ${r.date}</p>
+        <p><strong>Paciente:</strong> ${r.patient}</p>
+
+        <div style="margin-top:25px;white-space:pre-wrap;text-align:justify;word-break:break-word;">
+          ${r.text.replace(/\n/g, '<br>')}
+        </div>
+
+        <div style="margin-top:50px;text-align:right;font-style:italic;opacity:0.8;">
+          <p>Assinatura do profissional</p>
+          <p>____________________________</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-end mt-3">
+      <button class="btn btn-outline-secondary me-2" onclick="printReport()">🖨️ Imprimir / Salvar PDF</button>
+      <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+    </div>
+  `;
+
+  modal.show();
+}
+
+// ---------- Impressão em PDF ----------
+function printReport(){
+  const printArea = document.getElementById('reportView').innerHTML;
+  const original = document.body.innerHTML;
+
+  // Estilo para modo impressão
+  const printStyle = `
+    <style>
+      body {
+        background: #fff;
+        font-family: 'Georgia', serif;
+        color: #000;
+        margin: 40px;
+      }
+      h3 {
+        text-align: center;
+        font-size: 22px;
+      }
+      hr {
+        border: none;
+        border-top: 1px solid #ccc;
+        margin: 10px 0 20px 0;
+      }
+      p {
+        text-align: justify;
+        line-height: 1.6;
+        font-size: 16px;
+      }
+    </style>
+  `;
+
+  // Substitui corpo e imprime
+  document.body.innerHTML = printStyle + printArea;
+  window.print();
+  document.body.innerHTML = original;
+  window.location.reload();
+}
+
+
+function editReport(i){
+  const r=db.reports[i];
+  openReportModal('Editar Relato da Sessão',r);
+  document.getElementById('saveR').onclick=()=>{
+    const date=rdate.value,patient=rpatient.value,text=rtext.value;
+    if(!date||!patient||!text)return alert('Preencha todos os campos');
+    db.reports[i]={date,patient,text};
+    saveAll(); bootstrap.Modal.getInstance('#mainModal').hide(); renderSessionReports();
+  }
+}
+
+function openReportModal(title,data={}){
+  const modal=new bootstrap.Modal('#mainModal');
+  const theme=document.body.classList.contains('light')?'light':'dark';
+  document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
+  const opts=db.patients.map(p=>`<option ${data.patient===p.name?'selected':''}>${p.name}</option>`).join('');
+  document.getElementById('modalBody').innerHTML=`
+    <h5>${title}</h5>
+    <input type='date' class='form-control mb-2' id='rdate' value='${data.date||''}'>
+    <select class='form-select mb-2' id='rpatient'><option value=''>Selecione o paciente</option>${opts}</select>
+    <textarea class='form-control mb-2' id='rtext' placeholder='Descreva o relato'>${data.text||''}</textarea>
+    <div class='text-end'><button class='btn btn-accent' id='saveR'>Salvar</button></div>`;
+  modal.show();
+}
+
+
+  // ======= Usuários =======
+  function renderUsers(){
+    document.getElementById('content').innerHTML='<p>Gestão de usuários em desenvolvimento...</p>';
+  }
+
+  function renderAll(){ setView(document.querySelector('.sidebar a.active').dataset.view); }
+  setView('dashboard');
+
+  
+</script>
+</body>
+</html>
