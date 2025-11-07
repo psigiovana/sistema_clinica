@@ -58,8 +58,8 @@
     <a href="#" data-view="agenda"><i class="bi bi-calendar-fill"></i> Agenda</a>
     <a href="#" data-view="sessionReports"><i class="bi bi-journal-text"></i> Relato da Sessão</a>
     <a href="#" data-view="finance"><i class="bi bi-currency-dollar"></i> Financeiro</a>
-    <a href="https://psigiovana.github.io/psi.giovana/"><i class="bi bi-blockquote-left"></i> Contratos</a>
-    <a href="https://psigiovana.github.io/recibo/"><i class="bi bi-file-text-fill"></i> Recibos</a>
+    <a href="https://psigiovana.github.io/psi.giovana/" target="_blank"><i class="bi bi-blockquote-left"></i> Contratos</a>
+    <a href="https://psigiovana.github.io/recibo/" target="_blank"><i class="bi bi-file-text-fill"></i> Recibos</a>
     <a href="#" data-view="users"><i class="bi bi-shield-lock-fill"></i> Usuários</a>
     <div class="mt-auto d-flex justify-content-between align-items-center">
       <small></small>
@@ -92,17 +92,13 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
 // ======= Tema =======
-// Sempre inicia no modo claro
-document.body.classList.add('light');
-localStorage.setItem('theme', 'light');
-
+const savedTheme = localStorage.getItem('theme') || 'light';
+document.body.classList.add(savedTheme);
 const toggleBtn = document.getElementById('toggleTheme');
-toggleBtn.classList.replace('bi-moon-fill', 'bi-sun-fill');
+toggleBtn.classList.add(savedTheme === 'light' ? 'bi-sun-fill' : 'bi-moon-fill');
 
-// Alterna entre claro/escuro manualmente
 toggleBtn.addEventListener('click', () => {
   const isLight = document.body.classList.contains('light');
   const newTheme = isLight ? 'dark' : 'light';
@@ -114,8 +110,6 @@ toggleBtn.addEventListener('click', () => {
 
 // ======= Banco local unificado =======
 const FILE_NAME = "sistema_clinico.json";
-
-// Inicializa ou carrega automaticamente do localStorage
 let db = JSON.parse(localStorage.getItem("sistema_clinico")) || {
   patients: [],
   sessions: [],
@@ -124,13 +118,11 @@ let db = JSON.parse(localStorage.getItem("sistema_clinico")) || {
   users: [{ usuario: "admin", senha: "admin123" }]
 };
 
-// ======= Salvar automaticamente no localStorage =======
+// ======= Salvar/Carregar =======
 function saveAll() {
   localStorage.setItem("sistema_clinico", JSON.stringify(db));
-  console.log("💾 Dados salvos localmente.");
 }
 
-// ======= Exportar JSON manualmente =======
 function exportarJSON() {
   const jsonStr = JSON.stringify(db, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
@@ -138,16 +130,14 @@ function exportarJSON() {
   link.href = URL.createObjectURL(blob);
   link.download = FILE_NAME;
   link.click();
-  console.log("📂 Arquivo JSON exportado.");
 }
 
-// ======= Importar JSON manualmente =======
 function importarJSON(arquivo) {
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
       db = JSON.parse(e.target.result);
-      localStorage.setItem("sistema_clinico", JSON.stringify(db));
+      saveAll();
       alert("✅ Dados importados com sucesso!");
       renderAll();
     } catch (err) {
@@ -156,8 +146,6 @@ function importarJSON(arquivo) {
   };
   reader.readAsText(arquivo);
 }
-
-
 
 // ======= Botões de backup =======
 const headerDiv = document.querySelector("header div");
@@ -171,216 +159,402 @@ headerDiv.insertAdjacentHTML("beforeend", `
   <button class="btn btn-outline-secondary me-2" id="btnImport">📂 Importar JSON</button>
 `);
 headerDiv.appendChild(inputImport);
-
 document.getElementById("btnExport").addEventListener("click", exportarJSON);
 document.getElementById("btnImport").addEventListener("click", () => inputImport.click());
 
-  // ======= Navegação =======
-  document.querySelectorAll('.sidebar a').forEach(link => {
+// ======= Navegação =======
+document.querySelectorAll('.sidebar a[data-view]').forEach(link => {
   link.addEventListener('click', e => {
-    const view = link.getAttribute('data-view');
-    const href = link.getAttribute('href');
-
-    if (view) {
-      // Navegação interna (SPA)
-      e.preventDefault();
-      showView(view);
-    } 
-    else if (href && href.startsWith('http')) {
-      // Link externo — abre em nova aba e evita ação duplicada
-      e.preventDefault();
-      window.open(href, '_blank');
-    }
+    e.preventDefault();
+    document.querySelectorAll('.sidebar a').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+    const view = link.dataset.view;
+    setView(view);
   });
 });
 
-
-
-  const setView = view => {
-    const titles = {
-      dashboard: 'Início', patients: 'Pacientes', agenda: 'Agenda',
-      finance: 'Financeiro', sessionReports: 'Relato da Sessão', users: 'Usuários'
-    };
-    document.getElementById('view-title').innerText = titles[view] || 'Início';
-    switch (view) {
-      case 'dashboard': renderDashboard(); break;
-      case 'patients': renderPatients(); break;
-      case 'agenda': renderAgenda(); break;
-      case 'finance': renderFinance(); break;
-      case 'sessionReports': renderSessionReports(); break;
-      case 'users': renderUsers(); break;
-      default: renderDashboard();
-    }
+// ======= Controle de views =======
+function setView(view) {
+  const titles = {
+    dashboard: 'Início',
+    patients: 'Pacientes',
+    agenda: 'Agenda',
+    sessionReports: 'Relato da Sessão',
+    finance: 'Financeiro',
+    users: 'Usuários'
   };
-
-  // ======= Dashboard =======
-  function renderDashboard() {
-    const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
-    const total = db.finance.reduce((s, f) => s + (f.type === "receita" ? Number(f.value) : -Number(f.value)), 0);
-    const open = db.finance.filter(f => f.status === 'aberto').length;
-    document.getElementById('content').innerHTML = `
-      <div class="row g-3">
-        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Pacientes</h5><p>${db.patients.length}</p></div></div>
-        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Sessões</h5><p>${db.sessions.length}</p></div></div>
-        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Contas em Aberto</h5><p>${open}</p></div></div>
-        <div class="col-md-4"><div class="card ${bg} p-3"><h5>Total Financeiro</h5><p>R$ ${total.toFixed(2)}</p></div></div>
-      </div>`;
+  document.getElementById('view-title').innerText = titles[view] || 'Início';
+  switch (view) {
+    case 'patients': renderPatients(); break;
+    case 'agenda': renderAgenda(); break;
+    case 'finance': renderFinance(); break;
+    case 'sessionReports': renderSessionReports(); break;
+    case 'users': renderUsers(); break;
+    default: renderDashboard(); break;
   }
+}
 
-  // ======= Pacientes =======
-  function renderPatients() {
-    const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
-    const rows = db.patients.map((p,i)=>`
-      <tr><td>${i+1}</td><td>${p.name}</td><td>${p.phone||'-'}</td><td>${p.email||'-'}</td>
-      <td><button class="btn btn-sm btn-outline-primary" onclick="editPatient(${i})"><i class='bi bi-pencil'></i></button>
-      <button class="btn btn-sm btn-outline-danger" onclick="deletePatient(${i})"><i class='bi bi-trash'></i></button></td></tr>
-    `).join('');
-    document.getElementById('content').innerHTML = `
-      <div class="mb-3"><button class="btn btn-accent" onclick="editPatient(-1)">+ Novo Paciente</button></div>
-      <div class="card ${bg} p-3"><table class="table text-white"><thead>
-      <tr><th>#</th><th>Nome</th><th>Telefone</th><th>Email</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+// ======= Dashboard =======
+function renderDashboard() {
+  const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+  const total = db.finance.reduce((s, f) => s + (f.type === "receita" ? Number(f.value) : -Number(f.value)), 0);
+  const open = db.finance.filter(f => f.status === 'aberto').length;
+  document.getElementById('content').innerHTML = `
+    <div class="row g-3">
+      <div class="col-md-4"><div class="card ${bg} p-3"><h5>Pacientes</h5><p>${db.patients.length}</p></div></div>
+      <div class="col-md-4"><div class="card ${bg} p-3"><h5>Sessões</h5><p>${db.sessions.length}</p></div></div>
+      <div class="col-md-4"><div class="card ${bg} p-3"><h5>Contas em Aberto</h5><p>${open}</p></div></div>
+      <div class="col-md-4"><div class="card ${bg} p-3"><h5>Total Financeiro</h5><p>R$ ${total.toFixed(2)}</p></div></div>
+    </div>`;
+}
+
+// ======= Pacientes =======
+function renderPatients() {
+  const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+  const rows = db.patients.map((p,i)=>`
+    <tr><td>${i+1}</td><td>${p.name}</td><td>${p.phone||'-'}</td><td>${p.email||'-'}</td>
+    <td><button class="btn btn-sm btn-outline-primary" onclick="editPatient(${i})"><i class='bi bi-pencil'></i></button>
+    <button class="btn btn-sm btn-outline-danger" onclick="deletePatient(${i})"><i class='bi bi-trash'></i></button></td></tr>
+  `).join('');
+  document.getElementById('content').innerHTML = `
+    <div class="mb-3"><button class="btn btn-accent" onclick="editPatient(-1)">+ Novo Paciente</button></div>
+    <div class="card ${bg} p-3"><table class="table text-white"><thead>
+    <tr><th>#</th><th>Nome</th><th>Telefone</th><th>Email</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function editPatient(index){
+  const p = index==-1?{}:db.patients[index];
+  const modal = new bootstrap.Modal('#mainModal');
+  const theme = document.body.classList.contains('light')?'light':'dark';
+  document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
+  document.getElementById('modalBody').innerHTML=`
+    <h5>${index==-1?'Novo':'Editar'} Paciente</h5>
+    <input class='form-control mb-2' id='pname' placeholder='Nome' value='${p.name||''}'>
+    <input class='form-control mb-2' id='pphone' placeholder='Telefone' value='${p.phone||''}'>
+    <input class='form-control mb-2' id='pemail' placeholder='Email' value='${p.email||''}'>
+    <button class='btn btn-accent' id='saveP'>Salvar</button>`;
+  modal.show();
+  document.getElementById('saveP').onclick=()=>{
+    const name=pname.value;
+    if(!name)return alert('Nome obrigatório');
+    const phone=pphone.value, email=pemail.value;
+    if(index==-1) db.patients.push({name,phone,email});
+    else db.patients[index]={name,phone,email};
+    saveAll(); modal.hide(); renderPatients();
   }
+}
 
-  function editPatient(index){
-    const p = index==-1?{}:db.patients[index];
-    const modal = new bootstrap.Modal('#mainModal');
-    const theme = document.body.classList.contains('light')?'light':'dark';
-    document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
-    document.getElementById('modalBody').innerHTML=`
-      <h5>${index==-1?'Novo':'Editar'} Paciente</h5>
-      <input class='form-control mb-2' id='pname' placeholder='Nome' value='${p.name||''}'>
-      <input class='form-control mb-2' id='pphone' placeholder='Telefone' value='${p.phone||''}'>
-      <input class='form-control mb-2' id='pemail' placeholder='Email' value='${p.email||''}'>
-      <button class='btn btn-accent' id='saveP'>Salvar</button>`;
-    modal.show();
-    document.getElementById('saveP').onclick=()=>{
-      const name=document.getElementById('pname').value;
-      if(!name)return alert('Nome obrigatório');
-      const phone=document.getElementById('pphone').value;
-      const email=document.getElementById('pemail').value;
-      if(index==-1) db.patients.push({name,phone,email});
-      else db.patients[index]={name,phone,email};
-      saveAll(); modal.hide(); renderPatients();
-    }
+function deletePatient(i){
+  if(confirm('Excluir paciente?')){ db.patients.splice(i,1); saveAll(); renderPatients();}
+}
+// ======= AGENDA =======
+
+function renderAgenda() {
+  const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+
+  const rows = db.sessions.map((s, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${s.date}</td>
+      <td>${s.time}</td>
+      <td>${s.patient}</td>
+      <td>${s.notes || '-'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary" onclick="editSession(${i})"><i class='bi bi-pencil'></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteSession(${i})"><i class='bi bi-trash'></i></button>
+      </td>
+    </tr>
+  `).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="mb-3">
+      <button class="btn btn-accent" onclick="addSession()">+ Nova Sessão</button>
+    </div>
+    <div class="card ${bg} p-3">
+      <table class="table text-white align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Data</th>
+            <th>Hora</th>
+            <th>Paciente</th>
+            <th>Obs</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// Adicionar nova sessão
+function addSession() {
+  const modal = new bootstrap.Modal('#mainModal');
+  const theme = document.body.classList.contains('light') ? 'light' : 'dark';
+  document.querySelector('#mainModal .modal-content').className = `modal-content ${theme}`;
+
+  const opts = db.patients.map(p => `<option>${p.name}</option>`).join('');
+
+  document.getElementById('modalBody').innerHTML = `
+    <h5>Nova Sessão</h5>
+    <input type="date" class="form-control mb-2" id="sdate">
+    <input type="time" class="form-control mb-2" id="stime">
+    <select class="form-select mb-2" id="spatient">
+      <option value="">Selecione</option>${opts}
+    </select>
+    <textarea class="form-control mb-2" id="snotes" placeholder="Observações"></textarea>
+    <button class="btn btn-accent w-100" id="saveS">Salvar</button>
+  `;
+
+  modal.show();
+
+  document.getElementById('saveS').onclick = () => {
+    const date = sdate.value.trim();
+    const time = stime.value.trim();
+    const patient = spatient.value.trim();
+    const notes = snotes.value.trim();
+
+    if (!date || !time || !patient) return alert('Preencha todos os campos obrigatórios.');
+
+    db.sessions.push({ date, time, patient, notes });
+    saveAll();
+    modal.hide();
+    renderAgenda();
+  };
+}
+
+// Editar sessão existente
+function editSession(i) {
+  const s = db.sessions[i];
+  const modal = new bootstrap.Modal('#mainModal');
+  const theme = document.body.classList.contains('light') ? 'light' : 'dark';
+  document.querySelector('#mainModal .modal-content').className = `modal-content ${theme}`;
+
+  const opts = db.patients.map(p => 
+    `<option ${p.name === s.patient ? 'selected' : ''}>${p.name}</option>`
+  ).join('');
+
+  document.getElementById('modalBody').innerHTML = `
+    <h5>Editar Sessão</h5>
+    <input type="date" class="form-control mb-2" id="sdate" value="${s.date}">
+    <input type="time" class="form-control mb-2" id="stime" value="${s.time}">
+    <select class="form-select mb-2" id="spatient">
+      <option value="">Selecione</option>${opts}
+    </select>
+    <textarea class="form-control mb-2" id="snotes" placeholder="Observações">${s.notes || ''}</textarea>
+    <button class="btn btn-accent w-100" id="updateS">Salvar Alterações</button>
+  `;
+
+  modal.show();
+
+  document.getElementById('updateS').onclick = () => {
+    const date = sdate.value.trim();
+    const time = stime.value.trim();
+    const patient = spatient.value.trim();
+    const notes = snotes.value.trim();
+
+    if (!date || !time || !patient) return alert('Preencha todos os campos obrigatórios.');
+
+    db.sessions[i] = { date, time, patient, notes };
+    saveAll();
+    modal.hide();
+    renderAgenda();
+  };
+}
+
+// Excluir sessão
+function deleteSession(i) {
+  if (confirm('Deseja realmente excluir esta sessão?')) {
+    db.sessions.splice(i, 1);
+    saveAll();
+    renderAgenda();
   }
+}
 
-  function deletePatient(i){
-    if(confirm('Excluir paciente?')){ db.patients.splice(i,1); saveAll(); renderPatients();}
+
+// ======= FINANCEIRO =======
+
+// Renderizar lançamentos financeiros
+function renderFinance() {
+  const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+  let total = 0;
+
+  const rows = db.finance.map((f, i) => {
+    const valor = Number(f.value || 0);
+    total += f.type === 'receita' ? valor : -valor;
+
+    const tipo = f.type === 'receita'
+      ? '<span class="badge bg-success">Receita</span>'
+      : '<span class="badge bg-danger">Despesa</span>';
+
+    const status = f.status === 'aberto'
+      ? '<span class="badge badge-open">Aberto</span>'
+      : '<span class="badge badge-paid">Pago</span>';
+
+    const actionButtons = `
+      ${f.type === 'receita' && f.status === 'aberto' ? `
+        <button class="btn btn-sm btn-outline-success me-1" onclick="markAsPaid(${i})">Baixar</button>` : ''}
+      <button class="btn btn-sm btn-danger" onclick="deleteFinance(${i})">Deletar</button>
+    `;
+
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${f.desc || '-'}</td>
+        <td>${f.patient || '-'}</td>
+        <td>${tipo}</td>
+        <td>R$ ${valor.toFixed(2)}</td>
+        <td>${status}</td>
+        <td>${actionButtons}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+      <button class="btn btn-accent" onclick="addFinance()">+ Novo Lançamento</button>
+      <h5>Total: R$ ${total.toFixed(2)}</h5>
+    </div>
+    <div class="card ${bg} p-3">
+      <table class="table text-white align-middle">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Descrição</th>
+            <th>Paciente</th>
+            <th>Tipo</th>
+            <th>Valor</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// Adicionar novo lançamento financeiro
+function addFinance() {
+  const modal = new bootstrap.Modal('#mainModal');
+  const theme = document.body.classList.contains('light') ? 'light' : 'dark';
+  document.querySelector('#mainModal .modal-content').className = `modal-content ${theme}`;
+
+  const opts = db.patients.map(p => `<option>${p.name}</option>`).join('');
+
+  document.getElementById('modalBody').innerHTML = `
+    <h5>Novo Lançamento</h5>
+    <input class="form-control mb-2" id="fdesc" placeholder="Descrição">
+    <select class="form-select mb-2" id="fpatient">
+      <option value="">Selecione o paciente (opcional)</option>
+      ${opts}
+    </select>
+    <input type="number" class="form-control mb-2" id="fvalue" placeholder="Valor">
+    <select class="form-select mb-2" id="ftype">
+      <option value="receita">Conta a Receber</option>
+      <option value="despesa">Despesa</option>
+    </select>
+    <button class="btn btn-accent w-100" id="saveF">Salvar</button>
+  `;
+
+  modal.show();
+
+  document.getElementById('saveF').onclick = () => {
+    const desc = fdesc.value.trim();
+    const value = fvalue.value.trim();
+    const type = ftype.value;
+    const patient = fpatient.value;
+
+    if (!desc || !value) return alert('Preencha todos os campos');
+
+    db.finance.push({
+      desc,
+      value: parseFloat(value),
+      type,
+      patient,
+      status: 'aberto'
+    });
+
+    saveAll();
+    modal.hide();
+    renderFinance();
+  };
+}
+
+// Marcar lançamento como pago
+function markAsPaid(i) {
+  if (confirm('Confirmar baixa deste lançamento?')) {
+    db.finance[i].status = 'pago';
+    saveAll();
+    renderFinance();
   }
+}
 
-  // ======= Agenda =======
-  function renderAgenda(){
-    const bg=document.body.classList.contains('light')?'card-light-mode':'card-dark-mode';
-    const rows=db.sessions.map((s,i)=>`<tr><td>${i+1}</td><td>${s.date}</td><td>${s.time}</td><td>${s.patient}</td><td>${s.notes||'-'}</td></tr>`).join('');
-    document.getElementById('content').innerHTML=`
-      <div class='mb-3'><button class='btn btn-accent' onclick='addSession()'>+ Nova Sessão</button></div>
-      <div class='card ${bg} p-3'><table class='table text-white'><thead>
-      <tr><th>#</th><th>Data</th><th>Hora</th><th>Paciente</th><th>Obs</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+// Deletar lançamento financeiro
+function deleteFinance(i) {
+  if (confirm('Deseja realmente excluir este lançamento?')) {
+    db.finance.splice(i, 1);
+    saveAll();
+    renderFinance();
   }
+}
 
-  function addSession(){
-    const modal=new bootstrap.Modal('#mainModal');
-    const theme=document.body.classList.contains('light')?'light':'dark';
-    document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
-    const opts=db.patients.map(p=>`<option>${p.name}</option>`).join('');
-    document.getElementById('modalBody').innerHTML=`
-      <h5>Nova Sessão</h5>
-      <input type='date' class='form-control mb-2' id='sdate'>
-      <input type='time' class='form-control mb-2' id='stime'>
-      <select class='form-select mb-2' id='spatient'><option value=''>Selecione</option>${opts}</select>
-      <textarea class='form-control mb-2' id='snotes' placeholder='Observações'></textarea>
-      <button class='btn btn-accent' id='saveS'>Salvar</button>`;
-    modal.show();
-    document.getElementById('saveS').onclick=()=>{
-      const date=sdate.value,time=stime.value,patient=spatient.value,notes=snotes.value;
-      if(!date||!time||!patient)return alert('Preencha todos os campos');
-      db.sessions.push({date,time,patient,notes}); saveAll(); modal.hide(); renderAgenda();
-    }
-  }
+function markAsPaid(i){ db.finance[i].status='pago'; saveAll(); renderFinance(); }
 
-  // ======= Financeiro =======
-  function renderFinance(){
-    const bg=document.body.classList.contains('light')?'card-light-mode':'card-dark-mode';
-    let total=0;
-    const rows=db.finance.map((f,i)=>{
-      const valor=Number(f.value); total+=f.type==='receita'?valor:-valor;
-      const tipo=f.type==='receita'?'<span class="badge bg-success">Receita</span>':'<span class="badge bg-danger">Despesa</span>';
-      const status=f.status==='aberto'?'<span class="badge badge-open">Aberto</span>':'<span class="badge badge-paid">Pago</span>';
-      const ac=(f.type==='receita'&&f.status==='aberto')?`<button class='btn btn-sm btn-outline-success' onclick='markAsPaid(${i})'>Baixar</button>`:'';
-      return `<tr><td>${i+1}</td><td>${f.desc}</td><td>${f.patient||'-'}</td><td>${tipo}</td><td>R$ ${valor.toFixed(2)}</td><td>${status}</td><td>${ac}</td></tr>`;
-    }).join('');
-    document.getElementById('content').innerHTML=`
-      <div class='mb-3 d-flex justify-content-between align-items-center'>
-        <button class='btn btn-accent' onclick='addFinance()'>+ Novo Lançamento</button>
-        <h5>Total: R$ ${total.toFixed(2)}</h5>
-      </div>
-      <div class='card ${bg} p-3'><table class='table text-white'><thead>
-      <tr><th>#</th><th>Descrição</th><th>Paciente</th><th>Tipo</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  }
-
-  function addFinance(){
-    const modal=new bootstrap.Modal('#mainModal');
-    const theme=document.body.classList.contains('light')?'light':'dark';
-    document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
-    const opts=db.patients.map(p=>`<option>${p.name}</option>`).join('');
-    document.getElementById('modalBody').innerHTML=`
-      <h5>Novo Lançamento</h5>
-      <input class='form-control mb-2' id='fdesc' placeholder='Descrição'>
-      <select class='form-select mb-2' id='fpatient'><option value=''>Selecione o paciente (opcional)</option>${opts}</select>
-      <input type='number' class='form-control mb-2' id='fvalue' placeholder='Valor'>
-      <select class='form-select mb-2' id='ftype'>
-        <option value='receita'>Conta a Receber</option>
-        <option value='despesa'>Despesa</option>
-      </select>
-      <button class='btn btn-accent' id='saveF'>Salvar</button>`;
-    modal.show();
-    document.getElementById('saveF').onclick=()=>{
-      const desc=fdesc.value,value=fvalue.value,type=ftype.value,patient=fpatient.value;
-      if(!desc||!value)return alert('Preencha todos os campos');
-      db.finance.push({desc,value,type,patient,status:'aberto'}); saveAll(); modal.hide(); renderFinance();
-    }
-  }
-
-  function markAsPaid(i){ db.finance[i].status='pago'; saveAll(); renderFinance(); }
-
-  // ======= Relato da Sessão =======
+// ======= Relato da Sessão =======
+function renderSessionReports(){ /* mantém seu código completo aqui (sem alterações) */ }
 function renderSessionReports(){
-  const bg=document.body.classList.contains('light')?'card-light-mode':'card-dark-mode';
-  const rows=db.reports.map((r,i)=>`
+  const bg = document.body.classList.contains('light') ? 'card-light-mode' : 'card-dark-mode';
+  const rows = db.reports.map((r,i)=>`
     <tr>
       <td>${i+1}</td>
-      <td>${r.date}</td>
-      <td>${r.patient}</td>
-      <td>${r.text.length>40 ? r.text.substring(0,40)+'...' : r.text}</td>
+      <td>${r.date || '-'}</td>
+      <td>${r.patient || '-'}</td>
+      <td>${(r.text||'').length>40 ? (r.text||'').substring(0,40)+'...' : (r.text||'-')}</td>
       <td>
-        <button class='btn btn-sm btn-info me-1' onclick='viewReport(${i})'>👁️</button>
-        <button class='btn btn-sm btn-warning' onclick='editReport(${i})'>✏️</button>
-      </td>
+        <button class='btn btn-sm btn-info me-1' onclick='viewReport(${i})'><i class='bi bi-eye'></i></button>
+        <button class='btn btn-accent' onclick='editReport(${i})'><i class='bi bi-pencil'></i></button>
+        <button class='btn btn-accent' onclick='deleteSessionReports(${i})'><i class='bi bi-trash'></i></button></td></tr>
+
     </tr>`).join('');
 
   document.getElementById('content').innerHTML=`
-    <div class='mb-3'><button class='btn btn-accent' onclick='addReport()'>+ Novo Relato</button></div>
+    <div class='mb-3'><button class='btn btn-accent' id="btnAddReport">+ Novo Relato</button></div>
     <div class='card ${bg} p-3'>
       <table class='table text-white table-hover align-middle'>
         <thead><tr><th>#</th><th>Data</th><th>Paciente</th><th>Relato</th><th>Ações</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+
+  // gatilho para criar novo relato (garante que o botão exista ao renderizar)
+  document.getElementById('btnAddReport').addEventListener('click', () => addReport());
+
+  
 }
 
 function addReport(){
-  openReportModal('Novo Relato da Sessão');
-  document.getElementById('saveR').onclick=()=>{
-    const date=rdate.value,patient=rpatient.value,text=rtext.value;
-    if(!date||!patient||!text)return alert('Preencha todos os campos');
-    db.reports.push({date,patient,text});
-    saveAll(); bootstrap.Modal.getInstance('#mainModal').hide(); renderSessionReports();
-  }
+  const modal = openReportModal('Novo Relato da Sessão');
+  // define ação de salvar (modal já aberto e com os campos)
+  document.getElementById('saveR').onclick = () => {
+    const date = document.getElementById('rdate').value;
+    const patient = document.getElementById('rpatient').value;
+    const text = document.getElementById('rtext').value;
+    if(!date || !patient || !text) return alert('Preencha todos os campos');
+    db.reports.push({ date, patient, text });
+    saveAll();
+    modal.hide();
+    renderSessionReports();
+  };
 }
 
 function viewReport(i){
   const r = db.reports[i];
-  const modal = new bootstrap.Modal('#mainModal');
+  if(!r) return alert('Relato não encontrado');
+  const modal = new bootstrap.Modal(document.getElementById('mainModal'));
   const theme = document.body.classList.contains('light') ? 'light' : 'dark';
   document.querySelector('#mainModal .modal-content').className = `modal-content ${theme}`;
 
@@ -411,11 +585,11 @@ function viewReport(i){
           <hr style="margin-top:20px;border-color:${borderColor};opacity:0.4;">
         </div>
 
-        <p><strong>Data:</strong> ${r.date}</p>
-        <p><strong>Paciente:</strong> ${r.patient}</p>
+        <p><strong>Data:</strong> ${r.date || '-'}</p>
+        <p><strong>Paciente:</strong> ${r.patient || '-'}</p>
 
         <div style="margin-top:25px;white-space:pre-wrap;text-align:justify;word-break:break-word;">
-          ${r.text.replace(/\n/g, '<br>')}
+          ${(r.text || '').replace(/\n/g, '<br>')}
         </div>
 
         <div style="margin-top:50px;text-align:right;font-style:italic;opacity:0.8;">
@@ -426,90 +600,97 @@ function viewReport(i){
     </div>
 
     <div class="text-end mt-3">
-      <button class="btn btn-outline-secondary me-2" onclick="printReport()">🖨️ Imprimir / Salvar PDF</button>
+      <button class="btn btn-outline-secondary me-2" id="btnPrintReport">🖨️ Imprimir / Salvar PDF</button>
       <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
     </div>
   `;
-
   modal.show();
+
+  // associar impressão sem recarregar a página
+  document.getElementById('btnPrintReport').onclick = () => printReport();
 }
 
-// ---------- Impressão em PDF ----------
 function printReport(){
-  const printArea = document.getElementById('reportView').innerHTML;
-  const original = document.body.innerHTML;
+  const reportEl = document.getElementById('reportView');
+  if(!reportEl) return alert('Área para impressão não encontrada');
+  const printArea = reportEl.outerHTML;
 
-  // Estilo para modo impressão
   const printStyle = `
     <style>
-      body {
-        background: #fff;
-        font-family: 'Georgia', serif;
-        color: #000;
-        margin: 40px;
-      }
-      h3 {
-        text-align: center;
-        font-size: 22px;
-      }
-      hr {
-        border: none;
-        border-top: 1px solid #ccc;
-        margin: 10px 0 20px 0;
-      }
-      p {
-        text-align: justify;
-        line-height: 1.6;
-        font-size: 16px;
-      }
+      @media print { body { -webkit-print-color-adjust: exact; } }
+      body { background: #fff; font-family: 'Georgia', serif; color: #000; margin: 40px; }
+      h3 { text-align: center; font-size: 22px; }
+      hr { border: none; border-top: 1px solid #ccc; margin: 10px 0 20px 0; }
+      p { text-align: justify; line-height: 1.6; font-size: 16px; }
     </style>
   `;
 
-  // Substitui corpo e imprime
-  document.body.innerHTML = printStyle + printArea;
-  window.print();
-  document.body.innerHTML = original;
-  window.location.reload();
+  const w = window.open('', '_blank');
+  w.document.write('<html><head><title>Relato da Sessão</title>' + printStyle + '</head><body>');
+  w.document.write(printArea);
+  w.document.write('</body></html>');
+  w.document.close();
+  w.focus();
+  // aguarda render e abre diálogo de impressão
+  setTimeout(() => { w.print(); w.close(); }, 300);
 }
-
 
 function editReport(i){
-  const r=db.reports[i];
-  openReportModal('Editar Relato da Sessão',r);
-  document.getElementById('saveR').onclick=()=>{
-    const date=rdate.value,patient=rpatient.value,text=rtext.value;
-    if(!date||!patient||!text)return alert('Preencha todos os campos');
-    db.reports[i]={date,patient,text};
-    saveAll(); bootstrap.Modal.getInstance('#mainModal').hide(); renderSessionReports();
+  const r = db.reports[i];
+  if(!r) return alert('Relato não encontrado');
+  const modal = openReportModal('Editar Relato da Sessão', r);
+  document.getElementById('saveR').onclick = () => {
+    const date = document.getElementById('rdate').value;
+    const patient = document.getElementById('rpatient').value;
+    const text = document.getElementById('rtext').value;
+    if(!date || !patient || !text) return alert('Preencha todos os campos');
+    db.reports[i] = { date, patient, text };
+    saveAll();
+    modal.hide();
+    renderSessionReports();
+  };
+}
+// Excluir relato da sessão
+function deleteSessionReports(i) {
+  if (confirm('Excluir Relato da Sessão?')) {
+    db.reports.splice(i, 1); // nome correto do array
+    saveAll();                // salva alterações
+    renderSessionReports();   // atualiza a tabela
   }
 }
 
-function openReportModal(title,data={}){
-  const modal=new bootstrap.Modal('#mainModal');
-  const theme=document.body.classList.contains('light')?'light':'dark';
-  document.querySelector('#mainModal .modal-content').className=`modal-content ${theme}`;
-  const opts=db.patients.map(p=>`<option ${data.patient===p.name?'selected':''}>${p.name}</option>`).join('');
-  document.getElementById('modalBody').innerHTML=`
+
+function openReportModal(title, data = {}) {
+  const modal = new bootstrap.Modal(document.getElementById('mainModal'));
+  const theme = document.body.classList.contains('light') ? 'light' : 'dark';
+  document.querySelector('#mainModal .modal-content').className = `modal-content ${theme}`;
+
+  const opts = db.patients.map(p => `<option value="${p.name}" ${data.patient === p.name ? 'selected' : ''}>${p.name}</option>`).join('');
+  document.getElementById('modalBody').innerHTML = `
     <h5>${title}</h5>
-    <input type='date' class='form-control mb-2' id='rdate' value='${data.date||''}'>
+    <input type='date' class='form-control mb-2' id='rdate' value='${data.date || ''}'>
     <select class='form-select mb-2' id='rpatient'><option value=''>Selecione o paciente</option>${opts}</select>
-    <textarea class='form-control mb-2' id='rtext' placeholder='Descreva o relato'>${data.text||''}</textarea>
-    <div class='text-end'><button class='btn btn-accent' id='saveR'>Salvar</button></div>`;
+    <textarea class='form-control mb-2' id='rtext' placeholder='Descreva o relato' rows="8">${data.text || ''}</textarea>
+    <div class='text-end'><button class='btn btn-accent' id='saveR'>Salvar</button></div>
+  `;
   modal.show();
+  return modal;
 }
 
+// ======= Usuários =======
+function renderUsers(){ document.getElementById('content').innerHTML='<p>Gestão de usuários em desenvolvimento...</p>'; }
 
-  // ======= Usuários =======
-  function renderUsers(){
-    document.getElementById('content').innerHTML='<p>Gestão de usuários em desenvolvimento...</p>';
-  }
-
-  function renderAll(){ setView(document.querySelector('.sidebar a.active').dataset.view); }
-  setView('dashboard');
-
-  
+// ======= Inicialização =======
+function renderAll(){
+  const activeLink = document.querySelector('.sidebar a.active');
+  if(activeLink && activeLink.dataset.view) setView(activeLink.dataset.view);
+  else setView('dashboard');
+}
+renderAll();
 </script>
+
+
+
 </body>
 </html>
-
 
