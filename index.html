@@ -58,12 +58,12 @@
     <a href="#" data-view="agenda"><i class="bi bi-calendar-fill"></i> Agenda</a>
     <a href="#" data-view="sessionReports"><i class="bi bi-journal-text"></i> Relato da Sessão</a>
     <a href="#" data-view="finance"><i class="bi bi-currency-dollar"></i> Financeiro</a>
-    <a href="https://psigiovana.github.io/psi.giovana/"><i class="bi bi-file-text-fill"></i> Contratos</a>
+    <a href="https://psigiovana.github.io/psi.giovana/"><i class="bi bi-blockquote-left"></i> Contratos</a>
     <a href="#" data-view="users"><i class="bi bi-shield-lock-fill"></i> Usuários</a>
-    <a href="https://psigiovana.github.io/recibo/" target="blank"></i> Gerador de Recibos</a>
+    <a href="https://psigiovana.github.io/recibo/"><i class="bi bi-file-text-fill"></i> Recibos</a>
     <div class="mt-auto d-flex justify-content-between align-items-center">
-      <small>Versão Demo</small>
-      <i class="bi bi-sun-fill theme-toggle" id="toggleTheme"></i>
+      <small></small>
+      <i class="bi bi-sun-fill theme-toggle" id="toggleTheme"></i>    
     </div>
   </nav>
 
@@ -177,13 +177,24 @@ document.getElementById("btnImport").addEventListener("click", () => inputImport
 
   // ======= Navegação =======
   document.querySelectorAll('.sidebar a').forEach(link => {
-    link.addEventListener('click', e => {
+  link.addEventListener('click', e => {
+    const view = link.getAttribute('data-view');
+    const href = link.getAttribute('href');
+
+    if (view) {
+      // Navegação interna (SPA)
       e.preventDefault();
-      document.querySelectorAll('.sidebar a').forEach(l => l.classList.remove('active'));
-      link.classList.add('active');
-      setView(link.dataset.view);
-    });
+      showView(view);
+    } 
+    else if (href && href.startsWith('http')) {
+      // Link externo — abre em nova aba e evita ação duplicada
+      e.preventDefault();
+      window.open(href, '_blank');
+    }
   });
+});
+
+
 
   const setView = view => {
     const titles = {
@@ -500,6 +511,4 @@ function openReportModal(title,data={}){
 </script>
 </body>
 </html>
-
-
 
